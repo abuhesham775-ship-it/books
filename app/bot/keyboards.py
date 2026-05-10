@@ -72,7 +72,6 @@ def get_category_keyboard(categories: List[BookCategory] = None) -> InlineKeyboa
     builder.adjust(2)
     return builder.as_markup()
 
-# تم إزالة @lru_cache للسماح بتحميل الأقسام مباشرة من قاعدة البيانات كل مرة
 def _load_active_categories() -> List[BookCategory]:
     db = SessionLocal()
     try:
@@ -305,7 +304,7 @@ def get_admin_categories_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة الأقسام"""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="📋 عرض جميع الأقسام", callback_data="admin_cat_list"))
-    builder.add(InlineKeyboardButton(text="➕ إضافة قسم جديد", callback_data="admin_add_category"))
+    builder.add(InlineKeyboardButton(text="➕ إضافة قسم جديد", callback_data="admin_add_category"))  # تغيير من admin_cat_add
     builder.add(InlineKeyboardButton(
         text="✏️ تعديل قسم",
         callback_data="admin_cat_edit"
@@ -326,8 +325,9 @@ def get_admin_categories_keyboard() -> InlineKeyboardMarkup:
 def get_admin_authors_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة المؤلفين"""
     builder = InlineKeyboardBuilder()
+    builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="📋 عرض جميع المؤلفين", callback_data="admin_auth_list"))
-    builder.add(InlineKeyboardButton(text="➕ إضافة مؤلف جديد", callback_data="admin_add_author"))
+    builder.add(InlineKeyboardButton(text="➕ إضافة مؤلف جديد", callback_data="admin_add_author"))  # تغيير من admin_auth_add
     builder.add(InlineKeyboardButton(
         text="✏️ تعديل مؤلف",
         callback_data="admin_auth_edit"
@@ -349,7 +349,7 @@ def get_admin_channels_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة القنوات"""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="📋 عرض القنوات", callback_data="admin_ch_list"))
-    builder.add(InlineKeyboardButton(text="➕ إضافة قناة", callback_data="admin_add_channel"))
+    builder.add(InlineKeyboardButton(text="➕ إضافة قناة", callback_data="admin_add_channel"))  # تغيير من admin_ch_add
     builder.add(InlineKeyboardButton(
         text="🗑️ حذف قناة",
         callback_data="admin_ch_delete"
@@ -849,7 +849,6 @@ def get_admin_security_keyboard() -> InlineKeyboardMarkup:
 
     builder.adjust(2)
     return builder.as_markup()
-
 def get_admin_books_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="📋 قائمة الكتب", callback_data="admin_book_list"))
