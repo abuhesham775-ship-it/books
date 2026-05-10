@@ -46,7 +46,7 @@ class UserSubscription(Base):
     started_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
     auto_renew = Column(Boolean, default=False)
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)   # تم تغيير الاسم من metadata إلى extra_data
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
