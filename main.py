@@ -46,9 +46,11 @@ bot_task = None
 
 
 async def start_bot():
-    """بدء البوت"""
-    global bot, dp
-
+    try:
+        global bot, dp
+        # ... باقي الكود ...
+    except Exception as e:
+        logger.error(f"Bot failed to start: {e}", exc_info=True)
     # اختيار التخزين
     if settings.redis_url:
         try:
