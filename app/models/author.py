@@ -17,12 +17,13 @@ class Author(Base):
     image_url = Column(String(1000), nullable=True)
     birth_date = Column(DateTime, nullable=True)
     death_date = Column(DateTime, nullable=True)
-    country = Column(String(100), nullable=True)
+    country = Column(String(100), nullable=True) 
+    category_id = Column(Integer, ForeignKey("book_categories.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     books = relationship("Book", back_populates="author")
-
+    category = relationship("BookCategory", backref="authors")
     def __repr__(self):
         return f"<Author {self.id} - {self.name}>"
