@@ -19,7 +19,8 @@ class AuthorService:
         image_url: Optional[str] = None,
         birth_date=None,
         death_date=None,
-        country: Optional[str] = None
+        country: Optional[str] = None,
+        category_id: Optional[int] = None   # الوسيط الجديد
     ) -> Author:
         """إنشاء مؤلف جديد"""
         author = Author(
@@ -28,7 +29,8 @@ class AuthorService:
             image_url=image_url,
             birth_date=birth_date,
             death_date=death_date,
-            country=country
+            country=country,
+            category_id=category_id
         )
         self.db.add(author)
         self.db.commit()
@@ -43,7 +45,8 @@ class AuthorService:
         image_url: Optional[str] = None,
         birth_date=None,
         death_date=None,
-        country: Optional[str] = None
+        country: Optional[str] = None,
+        category_id: Optional[int] = None   # إضافة اختيارية
     ) -> Optional[Author]:
         """تحديث مؤلف"""
         author = self.get_by_id(author_id)
@@ -62,6 +65,8 @@ class AuthorService:
             author.death_date = death_date
         if country is not None:
             author.country = country
+        if category_id is not None:          # تحديث القسم إذا تم إرساله
+            author.category_id = category_id
 
         self.db.commit()
         self.db.refresh(author)
