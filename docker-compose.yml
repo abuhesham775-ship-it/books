@@ -1,0 +1,79 @@
+# Docker Compose Configuration
+# Smart Books Library Bot
+version: '3.8'
+
+services:
+  # قاعدة البيانات PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: smart_books_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: smart_books_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis للـ FSM والتخزين المؤقت
+  redis:
+    image: redis:7-alpine
+    container_name: smart_books_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # التطبيق الرئيسي
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart_books_app
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_ADMIN_ID: ${TELEGRAM_ADMIN_ID}
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smart_books_db
+      REDIS_URL: redis://redis:6379/0
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      AI_MODEL: ${AI_MODEL:-openai/gpt-3.5-turbo}
+      FASTAPI_HOST: 0.0.0.0
+      FASTAPI_PORT: 8000
+      DEBUG: "false"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - smart_books_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  smart_books_network:
+    driver: bridge
