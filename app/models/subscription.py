@@ -3,7 +3,7 @@ Subscription Models - نماذج الاشتراكات وخطط العضوية
 """
 import enum
 from datetime import datetime, timedelta
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey, JSON, Enum
 from sqlalchemy.orm import relationship
 from app.database import Base
 
