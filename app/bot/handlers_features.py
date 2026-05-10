@@ -226,6 +226,7 @@ class AdminStates(StatesGroup):
     waiting_reject_reason = State()
     waiting_message_user = State()
     waiting_ai_question = State()
+    waiting_author_category = State()
 
 
 # ==========================================
@@ -1604,12 +1605,21 @@ async def callback_admin_add_author(callback: CallbackQuery, state: FSMContext):
 async def process_add_author(message: Message, state: FSMContext):
     if not is_owner(message.from_user.id):
         return
+    data = await state.get_data()
+    category_id = data.get("author_category_id")   # هذا السطر الجديد
     name = message.text.strip()
+
     db = SessionLocal()
     try:
         author_service = AuthorService(db)
-        author_service.create(name=name)
-        await message.answer(f"✅ تم إضافة المؤلف '{name}' بنجاح.", reply_markup=get_admin_authors_keyboard())
+        author_service.create(name=name, category_id=category_id)  # تمرير القسم
+        await message.answer(
+            f"✅ تم إضافة المؤلف '{name}' وربطه بالقسم بنجاح.",
+            reply_markup=get_admin_authors_keyboard()
+        )
+    except Exception as e:
+        logging.error(f"Error adding author: {e}")
+        await message.answer("⚠️ فشل في إضافة المؤلف.")
     finally:
         db.close()
         await state.clear()
@@ -1627,7 +1637,14 @@ async def callback_admin_delete_author(callback: CallbackQuery):
         await callback_admin_auth_list(callback)
     finally:
         db.close()
-
+@router.callback_query(AdminStates.waiting_author_category, F.data.startswith("author_cat_choose_"))
+async def process_author_category_choice(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        return
+    category_id = int(callback.data.split("_")[-1])
+    await state.update_data(author_category_id=category_id)
+    await callback.message.edit_text("✍️ أرسل اسم المؤلف الجديد:")
+    await state.set_state(AdminStates.waiting_author_name)
 
 @router.callback_query(F.data == "admin_channels")
 async def callback_admin_channels(callback: CallbackQuery):
