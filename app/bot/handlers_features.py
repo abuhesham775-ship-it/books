@@ -711,11 +711,10 @@ async def go_back(message: Message):
 
 @router.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: CallbackQuery):
-    """الرجوع للقائمة الرئيسية"""
     text = "🏠 القائمة الرئيسية"
     keyboard = get_main_menu_keyboard(is_owner(callback.from_user.id))
-    await callback.message.edit_text(text, reply_markup=keyboard)
-
+    await callback.message.delete()
+    await callback.message.answer(text, reply_markup=keyboard)
 
 # @router.callback_query(F.data.startswith("cat_"))
 # async def callback_category(callback: CallbackQuery):
