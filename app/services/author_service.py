@@ -127,12 +127,5 @@ class AuthorService:
         ).limit(limit).all()
         
     def get_authors_by_category(self, category_id: int):
-        """جلب المؤلفين الذين لديهم كتب في قسم معين"""
-        from app.models.book import Book, BookStatus
-        authors = self.db.query(Author).join(
-            Book, Author.id == Book.author_id
-        ).filter(
-            Book.category_id == category_id,
-            Book.status == BookStatus.ACTIVE
-        ).distinct().all()
-        return authors
+        """جلب المؤلفين المرتبطين مباشرة بهذا القسم"""
+        return self.db.query(Author).filter(Author.category_id == category_id).all()
