@@ -859,3 +859,13 @@ def get_admin_books_keyboard() -> InlineKeyboardMarkup:
     builder.add(InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_menu"))
     builder.adjust(2)
     return builder.as_markup()
+def get_books_list_keyboard(books: list) -> InlineKeyboardMarkup:
+    """نسخة مبسطة للتوافق مع الاستدعاءات القديمة - بدون تصفّح"""
+    # يمكنك استدعاء النسخة المبنيّة على التصفح مع قيم افتراضية
+    return get_books_list_keyboard_paginated(
+        books=books,
+        page=1,
+        total_books=len(books),
+        limit=len(books),
+        prefix="books"
+    )
