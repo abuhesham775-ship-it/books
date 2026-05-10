@@ -2,6 +2,7 @@
 Social API - واجهة النظام الاجتماعي والمتابعة
 """
 from typing import List, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
