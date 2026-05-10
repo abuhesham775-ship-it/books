@@ -118,7 +118,7 @@ class AuthorService:
         """الحصول على أكثر المؤلفين شهرة"""
         from sqlalchemy import func
         from app.models.book import Book, BookStatus
-
+        
         return self.db.query(
             Author,
             func.count(Book.id).label('book_count')
@@ -126,7 +126,7 @@ class AuthorService:
             func.count(Book.id).desc()
         ).limit(limit).all()
         
-   def get_authors_by_category(self, category_id: int):
+    def get_authors_by_category(self, category_id: int):
         """جلب المؤلفين الذين لديهم كتب في قسم معين"""
         from app.models.book import Book, BookStatus
         authors = self.db.query(Author).join(
