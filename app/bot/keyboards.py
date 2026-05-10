@@ -136,7 +136,9 @@ def get_rating_keyboard(book_id: int) -> InlineKeyboardMarkup:
     builder.adjust(5)
     return builder.as_markup()
 
-
+def get_books_list_keyboard(books, page, total_books, limit, prefix):
+    return get_books_list_keyboard_paginated(books, page, total_books, limit, prefix)
+    
 def get_books_list_keyboard_paginated(books: List, page: int, total_books: int, limit: int, prefix: str) -> InlineKeyboardMarkup:
     """أزرار قائمة الكتب مع التصفح"""
     builder = InlineKeyboardBuilder()
