@@ -3,7 +3,7 @@ Social Models - نماذج النظام الاجتماعي والمتابعة
 """
 import enum
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Enum
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -47,7 +47,7 @@ class ActivityFeed(Base):
     target_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     target_book_id = Column(Integer, ForeignKey("books.id"), nullable=True)
     description = Column(Text, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)   # تم تغيير الاسم من metadata إلى extra_data
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", foreign_keys=[user_id], backref="activity_entries")
