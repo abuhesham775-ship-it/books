@@ -3,7 +3,9 @@ Settings Module - إعدادات المشروع
 إدارة جميع المتغيرات البيئية والإعدادات
 """
 from typing import Optional
-
+from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict  # ← هذا المفقود
+from functools import lru_cache                                  # ← هذا المفقود أيضًا
 
 class Settings(BaseSettings):
     """إعدادات المشروع"""
