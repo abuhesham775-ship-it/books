@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
-
+from aiogram.fsm.storage.memory import MemoryStorage
 from config.settings import get_settings
 from app.database import init_db, engine, Base
 from app.bot.handlers_router import handlers_router
