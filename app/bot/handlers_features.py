@@ -1594,12 +1594,45 @@ async def callback_admin_auth_list(callback: CallbackQuery):
 
 @router.callback_query(F.data == "admin_add_author")
 async def callback_admin_add_author(callback: CallbackQuery, state: FSMContext):
-    """طلب إضافة مؤلف جديد"""
     if not is_owner(callback.from_user.id):
         return
+    db = SessionLocal()
+    try:
+        category_service = CategoryService(db)
+        categories = category_service.list_all(active_only=False)
+        if not categories:
+            await callback.message.edit_text(
+                "📭 لا توجد أقسام. أضف قسماً أولاً.",
+                reply_markup=get_admin_authors_keyboard()
+            )
+            return
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        for cat in categories:
+            builder.add(InlineKeyboardButton(
+                text=cat.name,
+                callback_data=f"author_cat_choose_{cat.id}"
+            ))
+        builder.row(InlineKeyboardButton(
+            text="🔙 إلغاء",
+            callback_data="admin_authors"
+        ))
+        await callback.message.edit_text(
+            "اختر القسم الذي سينتمي إليه المؤلف:",
+            reply_markup=builder.as_markup()
+        )
+        await state.set_state(AdminStates.waiting_author_category)
+    finally:
+        db.close()
+@router.callback_query(AdminStates.waiting_author_category, F.data.startswith("author_cat_choose_"))
+async def process_author_category_choice(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        return
+    category_id = int(callback.data.split("_")[-1])
+    await state.update_data(author_category_id=category_id)
     await callback.message.edit_text("✍️ أرسل اسم المؤلف الجديد:")
     await state.set_state(AdminStates.waiting_author_name)
-
+    
 @router.message(AdminStates.waiting_author_name)
 async def process_add_author(message: Message, state: FSMContext):
     if not is_owner(message.from_user.id):
@@ -1636,14 +1669,6 @@ async def callback_admin_delete_author(callback: CallbackQuery):
         await callback_admin_auth_list(callback)
     finally:
         db.close()
-@router.callback_query(AdminStates.waiting_author_category, F.data.startswith("author_cat_choose_"))
-async def process_author_category_choice(callback: CallbackQuery, state: FSMContext):
-    if not is_owner(callback.from_user.id):
-        return
-    category_id = int(callback.data.split("_")[-1])
-    await state.update_data(author_category_id=category_id)
-    await callback.message.edit_text("✍️ أرسل اسم المؤلف الجديد:")
-    await state.set_state(AdminStates.waiting_author_name)
 
 @router.callback_query(F.data == "admin_channels")
 async def callback_admin_channels(callback: CallbackQuery):
