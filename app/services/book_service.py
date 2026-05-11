@@ -227,6 +227,19 @@ class BookService:
         if limit:
             query = query.limit(limit).offset(offset)
         return query.all()
+
+    def get_books_by_author(self, author_id: int, limit: int = 20, offset: int = 0) -> List[Book]:
+        """الحصول على كتب مؤلف معين"""
+        query = self.db.query(Book).filter(
+            Book.author_id == author_id,
+            Book.status == BookStatus.ACTIVE
+        ).order_by(desc(Book.created_at))
+        if limit is not None:
+            query = query.limit(limit)
+        if offset:
+            query = query.offset(offset)
+        return query.all()
+
     
     def get_statistics(self) -> dict:
         """إحصائيات الكتب"""
