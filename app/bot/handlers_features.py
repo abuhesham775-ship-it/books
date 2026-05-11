@@ -1808,28 +1808,137 @@ async def callback_admin_channels(callback: CallbackQuery):
     keyboard = get_admin_channels_keyboard()
     await callback.message.edit_text(text, reply_markup=keyboard)
 
-@router.callback_query(F.data == "admin_ch_list")
-async def callback_admin_ch_list(callback: CallbackQuery):
-    """عرض القنوات مع خيار الحذف"""
+@router.callback_query(F.data == "admin_channels")
+async def callback_admin_channels(callback: CallbackQuery):
+    """إدارة القنوات"""
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
+    text = "📡 إدارة قنوات الاشتراك الإجباري"
+    keyboard = get_admin_channels_keyboard()
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "admin_channels_list")
+async def callback_admin_channels_list(callback: CallbackQuery):
+    """عرض القنوات"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+
     db = SessionLocal()
     try:
         channel_service = ChannelService(db)
         channels = channel_service.get_all_channels()
+
         if not channels:
-            await callback.message.edit_text("📭 لا توجد قنوات حالياً.", reply_markup=get_admin_channels_keyboard())
-            return
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        builder = InlineKeyboardBuilder()
-        for ch in channels:
-            builder.row(
-                InlineKeyboardButton(text=ch.channel_name or ch.channel_id, callback_data="ignore"),
-                InlineKeyboardButton(text="🗑️", callback_data=f"admin_ch_delete_{ch.channel_id}")
+            await callback.message.edit_text(
+                "📭 لا توجد قنوات حالياً.",
+                reply_markup=get_admin_channels_keyboard()
             )
-        builder.row(InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_channels"))
-        await callback.message.edit_text("📡 قائمة القنوات:", reply_markup=builder.as_markup())
+            return
+
+        text = "📡 قائمة القنوات:\n\n"
+        for ch in channels:
+            name = ch.channel_name or ch.channel_id
+            status = "مطلوب" if getattr(ch, "is_required", False) else "اختياري"
+            text += f"📢 {name}\n   الحالة: {status}\n\n"
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_channels")]
+        ])
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "admin_users")
+async def callback_admin_users(callback: CallbackQuery):
+    """إدارة المستخدمين"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+
+    text = "🚫 إدارة المستخدمين"
+    keyboard = get_admin_users_keyboard()
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "admin_users_list")
+async def callback_admin_users_list(callback: CallbackQuery):
+    """عرض المستخدمين"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+
+    db = SessionLocal()
+    try:
+        user_service = UserService(db)
+        users = user_service.get_all_users()[:30]
+
+        if not users:
+            await callback.message.edit_text(
+                "📭 لا يوجد مستخدمون حالياً.",
+                reply_markup=get_admin_users_keyboard()
+            )
+            return
+
+        text = "👥 قائمة المستخدمين:\n\n"
+        for user in users:
+            status_value = getattr(user.status, "value", user.status)
+            status_emoji = {"active": "✅", "banned": "🚫", "suspended": "⚠️"}.get(status_value, "❓")
+            name = user.first_name or user.username or str(user.telegram_id)
+            text += f"{status_emoji} {name}\n   ID: {user.telegram_id}\n\n"
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_users")]
+        ])
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    finally:
+        db.close()
+
+
+@router.callback_query(F.data == "admin_challenges")
+async def callback_admin_challenges(callback: CallbackQuery):
+    """إدارة التحديات"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+
+    text = "🏆 إدارة التحديات"
+    keyboard = get_admin_challenges_keyboard()
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "admin_challenges_list")
+async def callback_admin_challenges_list(callback: CallbackQuery):
+    """عرض التحديات"""
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+
+    db = SessionLocal()
+    try:
+        challenge_service = ChallengeService(db)
+        challenges = challenge_service.get_all_challenges(active_only=False)
+
+        if not challenges:
+            await callback.message.edit_text(
+                "🏆 لا توجد تحديات حالياً.",
+                reply_markup=get_admin_challenges_keyboard()
+            )
+            return
+
+        text = "🏆 قائمة التحديات:\n\n"
+        for ch in challenges:
+            title = getattr(ch, "name", None) or getattr(ch, "title", None) or "بدون اسم"
+            status_value = getattr(ch.status, "value", ch.status) if hasattr(ch, "status") else "unknown"
+            text += f"• {title} (ID: {ch.id}) - {status_value}\n"
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_challenges")]
+        ])
+        await callback.message.edit_text(text, reply_markup=keyboard)
     finally:
         db.close()
 
