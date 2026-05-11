@@ -4,6 +4,7 @@ Search Service - خدمة البحث
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
+import httpx
 from app.models.book import Book, BookStatus
 from app.models.author import Author
 from app.services.ai_service import ai_service
@@ -153,6 +154,64 @@ class SearchService:
             Book.id != book_id,
             Book.status == BookStatus.ACTIVE
         ).order_by(Book.average_rating.desc()).limit(limit).all()
+
+
+    async def search_external_sources(self, query: str, limit: int = 10) -> List[dict]:
+        """البحث في مصادر خارجية (Open Library + Google Books)"""
+        results: List[dict] = []
+
+        async def _fetch_openlibrary(client: httpx.AsyncClient):
+            try:
+                resp = await client.get(
+                    "https://openlibrary.org/search.json",
+                    params={"q": query, "limit": limit},
+                    timeout=10.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                for item in data.get("docs", [])[:limit]:
+                    authors = item.get("author_name") or []
+                    results.append({
+                        "source": "OpenLibrary",
+                        "title": item.get("title"),
+                        "author": authors[0] if authors else None,
+                        "year": item.get("first_publish_year"),
+                        "external_id": item.get("key"),
+                        "url": f"https://openlibrary.org{item.get('key')}" if item.get('key') else None,
+                        "description": item.get("subtitle"),
+                    })
+            except Exception:
+                return
+
+        async def _fetch_google_books(client: httpx.AsyncClient):
+            try:
+                resp = await client.get(
+                    "https://www.googleapis.com/books/v1/volumes",
+                    params={"q": query, "maxResults": limit},
+                    timeout=10.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                for item in data.get("items", [])[:limit]:
+                    info = item.get("volumeInfo", {})
+                    authors = info.get("authors") or []
+                    results.append({
+                        "source": "GoogleBooks",
+                        "title": info.get("title"),
+                        "author": authors[0] if authors else None,
+                        "year": info.get("publishedDate", "")[:4] if info.get("publishedDate") else None,
+                        "external_id": item.get("id"),
+                        "url": info.get("infoLink"),
+                        "description": info.get("description"),
+                    })
+            except Exception:
+                return
+
+        async with httpx.AsyncClient() as client:
+            await _fetch_openlibrary(client)
+            await _fetch_google_books(client)
+
+        return results[:limit]
 
     def advanced_search(
         self,
