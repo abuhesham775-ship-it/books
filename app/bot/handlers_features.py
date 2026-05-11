@@ -1611,7 +1611,7 @@ async def callback_admin_add_author(callback: CallbackQuery, state: FSMContext):
         for cat in categories:
             builder.add(InlineKeyboardButton(
                 text=cat.name,
-                callback_data=f"author_cat_choose_{cat.id}"
+                callback_data=f"admin_author_cat_{cat.id}"
             ))
         builder.row(InlineKeyboardButton(
             text="🔙 إلغاء",
@@ -1624,7 +1624,7 @@ async def callback_admin_add_author(callback: CallbackQuery, state: FSMContext):
         await state.set_state(AdminStates.waiting_author_category)
     finally:
         db.close()
-@router.callback_query(AdminStates.waiting_author_category, F.data.startswith("author_cat_choose_"))
+@router.callback_query(AdminStates.waiting_author_category, F.data.startswith("admin_author_cat_"))
 async def process_author_category_choice(callback: CallbackQuery, state: FSMContext):
     if not is_owner(callback.from_user.id):
         return
@@ -2443,12 +2443,12 @@ async def callback_admin_auth_list(callback: CallbackQuery):
     finally:
         db.close()
 
-@router.callback_query(F.data == "admin_add_author")
-async def callback_admin_add_author(callback: CallbackQuery, state: FSMContext):
-    """بدء إضافة مؤلف"""
-    if not is_owner(callback.from_user.id): return
-    await callback.message.edit_text("✍️ أرسل اسم المؤلف الجديد:")
-    await state.set_state(AdminStates.waiting_author_name)
+# @router.callback_query(F.data == "admin_add_author")
+# async def callback_admin_add_author(callback: CallbackQuery, state: FSMContext):
+#   """بدء إضافة مؤلف"""
+#    if not is_owner(callback.from_user.id): return
+#    await callback.message.edit_text("✍️ أرسل اسم المؤلف الجديد:")
+#    await state.set_state(AdminStates.waiting_author_name)
 
 @router.callback_query(F.data == "admin_add_channel")
 async def callback_admin_add_channel(callback: CallbackQuery, state: FSMContext):
