@@ -28,23 +28,36 @@ class ChallengeService:
     def get_available_challenges(self, user_id: int) -> List[Challenge]:
         """الحصول على التحديات المتاحة للمستخدم"""
         now = datetime.utcnow()
-
+    
         # التحديات النشطة
         challenges = self.db.query(Challenge).filter(
             Challenge.is_active == True,
             Challenge.starts_at <= now,
             (Challenge.ends_at.is_(None) | (Challenge.ends_at > now))
         ).order_by(Challenge.sort_order).all()
-
+    
         # تصفية التحديات المشاركة فيها
         available = []
         for challenge in challenges:
             participation = self.get_participation(user_id, challenge.id)
             if not participation or participation.status == ChallengeStatus.NOT_STARTED:
                 available.append(challenge)
-
+    
         return available
+    def get_all_challenges(self, active_only: bool = False) -> List[Challenge]:
+        """الحصول على جميع التحديات"""
+        query = self.db.query(Challenge)
 
+        if active_only:
+        now = datetime.utcnow()
+        query = query.filter(
+            Challenge.is_active == True,
+            Challenge.starts_at <= now,
+            (Challenge.ends_at.is_(None) | (Challenge.ends_at > now))
+        )
+
+        return query.order_by(Challenge.sort_order, Challenge.id).all()
+    
     def get_active_challenges(self, user_id: int) -> List[ChallengeParticipation]:
         """الحصول على التحديات النشطة للمستخدم"""
         return self.db.query(ChallengeParticipation).filter(
@@ -182,7 +195,7 @@ class ChallengeService:
         points.lifetime_earned += amount
 
         transaction = PointsTransaction(
-            user_id=points.id,
+            user_id=user_id,
             amount=amount,
             transaction_type=TransactionType.GIFT,
             description=description
