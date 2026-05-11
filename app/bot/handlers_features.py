@@ -1282,7 +1282,7 @@ async def process_book_file(message: Message, state: FSMContext, bot: Bot):
         if not author:
             author = author_service.create(name=author_name)
         book_service = BookService(db)
-        book = book_service.create(
+        book = book_service.create_book(
             title=title,
             author_id=author.id,
             description=description,
