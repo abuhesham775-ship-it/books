@@ -82,6 +82,49 @@ class SecurityService:
 
         return query.order_by(desc(AuditLog.created_at)).limit(limit).all()
 
+    def get_recent_logs(self, limit: int = 20) -> List[dict]:
+        """واجهة توافقية لآخر السجلات"""
+        logs = self.get_audit_logs(limit=limit)
+        return [
+            {
+                "action": getattr(log.action, "value", str(log.action)),
+                "user_id": log.user_id,
+                "admin_id": log.admin_id,
+                "timestamp": log.created_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(log, "created_at", None) else None,
+                "status": log.status,
+                "entity_type": log.entity_type,
+                "entity_id": log.entity_id,
+            }
+            for log in logs
+        ]
+
+    def get_security_stats(self) -> dict:
+        """إحصائيات الأمان العامة"""
+        suspicious_events = self.db.query(func.count(SecurityEvent.id)).scalar() or 0
+        blocked_users = self.db.query(func.count(RateLimit.id)).filter(RateLimit.is_blocked == True).scalar() or 0
+        api_requests = self.db.query(func.sum(RateLimit.current_count)).scalar() or 0
+        failed_attempts = self.db.query(func.count(AccessLog.id)).filter(AccessLog.status == "failed").scalar() or 0
+        return {
+            "suspicious_events": suspicious_events,
+            "blocked_users": blocked_users,
+            "api_requests": api_requests,
+            "failed_attempts": failed_attempts,
+        }
+
+    def get_blocked_ips(self, limit: int = 20) -> List[dict]:
+        """القائمة السوداء بصيغة توافقية للواجهات"""
+        entries = self.db.query(IPBlacklist).order_by(desc(IPBlacklist.created_at)).limit(limit).all()
+        active = [entry for entry in entries if entry.is_active()]
+        return [
+            {
+                "ip_address": entry.ip_address,
+                "reason": entry.reason,
+                "threat_level": getattr(entry.threat_level, "value", str(entry.threat_level)),
+                "blocked_until": entry.blocked_until.strftime("%Y-%m-%d %H:%M:%S") if entry.blocked_until else None,
+            }
+            for entry in active
+        ]
+
     # ==========================================
     # حدود معدل الطلبات
     # ==========================================
