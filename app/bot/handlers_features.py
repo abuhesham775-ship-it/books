@@ -347,7 +347,32 @@ async def cmd_stats(message: Message):
     finally:
         db.close()
 
+@router.callback_query(F.data == "admin_challenges_list")
+async def callback_admin_challenges_list(callback: CallbackQuery):
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
 
+    db = SessionLocal()
+    try:
+        challenge_service = ChallengeService(db)
+        challenges = challenge_service.get_all_challenges()
+
+        if not challenges:
+            await callback.message.edit_text(
+                "📭 لا توجد تحديات حالياً.",
+                reply_markup=get_admin_challenges_keyboard()
+            )
+            return
+
+        text = "🏆 قائمة التحديات:\n\n"
+        for ch in challenges:
+            text += f"• {ch.title} (ID: {ch.id})\n"
+
+        await callback.message.edit_text(text, reply_markup=get_admin_challenges_keyboard())
+    finally:
+        db.close()
+        
 @router.message(Command("exportcsv"))
 async def cmd_export_csv(message: Message):
     """تصدير بيانات الكتب كـ CSV"""
