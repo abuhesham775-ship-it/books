@@ -10,6 +10,7 @@ import logging
 from typing import Union, Callable, Any, Awaitable, Dict, Optional
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, Update, TelegramObject, ErrorEvent  # أضف ErrorEvent
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -275,19 +276,34 @@ def resolve_book_file_path(stored_path: Optional[str]) -> Optional[str]:
     if not stored_path:
         return None
 
-    candidates = [stored_path]
-    if not os.path.isabs(stored_path):
+    cleaned = stored_path.strip().strip('"').strip("'")
+    if cleaned.startswith("file://"):
+        cleaned = cleaned.replace("file://", "", 1)
+
+    candidates = [cleaned]
+    if not os.path.isabs(cleaned):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         candidates.extend([
-            os.path.join(project_root, stored_path),
-            os.path.join(project_root, settings.upload_folder, os.path.basename(stored_path)),
-            os.path.abspath(stored_path),
+            os.path.join(project_root, cleaned),
+            os.path.join(project_root, settings.upload_folder, os.path.basename(cleaned)),
+            os.path.join(project_root, "uploads", os.path.basename(cleaned)),
+            os.path.abspath(cleaned),
         ])
 
     for candidate in candidates:
         if candidate and os.path.exists(candidate):
             return candidate
     return None
+
+
+def safe_edit_text(message_or_callback, text: str, reply_markup=None):
+    """Edit message text without crashing on identical content."""
+    try:
+        return message_or_callback.edit_text(text, reply_markup=reply_markup)
+    except TelegramBadRequest as exc:
+        if "message is not modified" in str(exc).lower():
+            return None
+        raise
 
 
 # ==========================================
@@ -679,7 +695,7 @@ async def download_history(message: Message):
 @router.message(F.text == "⚙️ الإعدادات")
 async def settings_menu(message: Message):
     """قائمة الإعدادات"""
-    user = ensure_user(
+    ensure_user(
         message.from_user.id,
         message.from_user.username,
         message.from_user.first_name,
@@ -845,6 +861,11 @@ async def callback_author_books(callback: CallbackQuery):
         limit = 10
         offset = (page - 1) * limit
         books = book_service.get_books_by_category_and_author(category_id, author_id, limit=limit, offset=offset)
+        
+        # fallback: بعض الكتب قد تكون مرتبطة بالمؤلف فقط دون القسم بشكل صحيح
+        if not books:
+            books = book_service.get_books_by_author(author_id, limit=limit, offset=offset)
+            total_books = len(books) if page == 1 else max(total_books, len(books))
         
         if not books and page == 1:
             await callback.message.edit_text(
@@ -1977,17 +1998,22 @@ async def callback_toggle_language(callback: CallbackQuery):
     db = SessionLocal()
     try:
         user_service = UserService(db)
-        user = user_service.get_user_by_telegram_id(callback.from_user.id)
+        user = user_service.get_or_create_user(
+            callback.from_user.id,
+            callback.from_user.username,
+            callback.from_user.first_name,
+            callback.from_user.last_name,
+        )
 
-        if user:
-            user.language = "en" if user.language == "ar" else "ar"
-            db.commit()
+        user.language = "en" if (user.language or "ar") == "ar" else "ar"
+        db.commit()
+        db.refresh(user)
 
         await callback.answer("🌐 تم تغيير اللغة", show_alert=True)
 
         text = "⚙️ الإعدادات"
-        keyboard = get_settings_keyboard(user.language if user else "ar")
-        await callback.message.edit_text(text, reply_markup=keyboard)
+        keyboard = get_settings_keyboard(user.language)
+        await safe_edit_text(callback.message, text, reply_markup=keyboard)
     finally:
         db.close()
 
@@ -2058,6 +2084,15 @@ async def callback_search_author(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.waiting_search)
 
 
+
+
+@router.callback_query(F.data == "search_external")
+async def callback_search_external(callback: CallbackQuery, state: FSMContext):
+    """البحث الخارجي عن الكتب"""
+    await state.update_data(search_mode="external")
+    await callback.message.edit_text("🌐 أدخل كلمة البحث للبحث في المصادر الخارجية:")
+    await state.set_state(AdminStates.waiting_search)
+
 @router.message(AdminStates.waiting_search)
 async def handle_search(message: Message, state: FSMContext):
     """معالجة البحث"""
@@ -2078,6 +2113,22 @@ async def handle_search(message: Message, state: FSMContext):
         if mode == "ai":
             results = await search_service.semantic_search(query, limit=10)
             books = [book for book, _score in results]
+        elif mode == "external":
+            external = await search_service.search_external_sources(query, limit=10)
+            if not external:
+                await message.answer(f"لم يتم العثور على نتائج خارجية لـ: {query}")
+                return
+            text = f"🌐 نتائج خارجية عن: {query}\n\n"
+            for item in external:
+                text += f"• {item.get('title') or 'بدون عنوان'}\n"
+                if item.get("author"):
+                    text += f"  ✍️ {item.get('author')}\n"
+                if item.get("year"):
+                    text += f"  📅 {item.get('year')}\n"
+                text += f"  المصدر: {item.get('source')}\n\n"
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 رجوع", callback_data="search_text")]])
+            await message.answer(text, reply_markup=keyboard)
+            return
         elif mode == "category":
             books = search_service.search_by_category(query, limit=10)
         elif mode == "author":
@@ -2106,12 +2157,6 @@ async def handle_search(message: Message, state: FSMContext):
     finally:
         db.close()
         await state.clear()
-
-
-# ==========================================
-# AI Assistant Handler
-# ==========================================
-
 @router.callback_query(F.data == "admin_ai")
 async def callback_admin_ai(callback: CallbackQuery, state: FSMContext):
     """مساعد AI"""
@@ -2821,3 +2866,232 @@ async def callback_admin_challenges_main(callback: CallbackQuery):
     if not is_owner(callback.from_user.id): return
     from app.bot.keyboards import get_admin_challenges_keyboard
     await callback.message.edit_text("🏆 إدارة التحديات", reply_markup=get_admin_challenges_keyboard())
+
+
+# ==========================================
+
+# ==========================================
+# Missing/Compatibility Handlers
+# ==========================================
+
+@router.callback_query(F.data == "my_downloads")
+async def callback_my_downloads(callback: CallbackQuery):
+    db = SessionLocal()
+    try:
+        user_service = UserService(db)
+        book_service = BookService(db)
+        user_service.get_or_create_user(callback.from_user.id, callback.from_user.username, callback.from_user.first_name, callback.from_user.last_name)
+        downloads = user_service.get_user_downloads(callback.from_user.id, limit=10)
+        if not downloads:
+            await callback.answer("لا توجد تحميلات سابقة", show_alert=True)
+            return
+        text = "📥 سجل التحميلات:\n\n"
+        books = []
+        for dl in downloads:
+            book = book_service.get_book(dl.book_id)
+            if book:
+                books.append(book)
+                text += f"• {truncate_text(book.title, 40)}\n"
+        await callback.message.edit_text(text, reply_markup=get_books_list_keyboard(books) if books else get_back_keyboard())
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "my_favorites")
+async def callback_my_favorites(callback: CallbackQuery):
+    db = SessionLocal()
+    try:
+        user_service = UserService(db)
+        book_service = BookService(db)
+        user = user_service.get_or_create_user(callback.from_user.id, callback.from_user.username, callback.from_user.first_name, callback.from_user.last_name)
+        favorites = user_service.get_user_favorites(callback.from_user.id)
+        if not favorites:
+            await callback.answer("لا توجد مفضلة حالياً", show_alert=True)
+            return
+        books = []
+        for fav in favorites:
+            book = book_service.get_book(fav.book_id)
+            if book:
+                books.append(book)
+        text = "❤️ كتبك المفضلة:\n\n" + "\n".join(f"• {truncate_text(book.title, 40)}" for book in books)
+        await callback.message.edit_text(text, reply_markup=get_books_list_keyboard(books) if books else get_back_keyboard())
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "invite_friend")
+async def callback_invite_friend(callback: CallbackQuery):
+    db = SessionLocal()
+    try:
+        user_service = UserService(db)
+        user = user_service.get_or_create_user(callback.from_user.id, callback.from_user.username, callback.from_user.first_name, callback.from_user.last_name)
+        bot_username = callback.bot.username if callback.bot and callback.bot.username else "your_bot"
+        link = f"https://t.me/{bot_username}?start={user.referral_code}"
+        await callback.message.edit_text(f"🎁 رابط الإحالة الخاص بك:\n\n{link}", reply_markup=get_back_keyboard())
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "referral_top")
+async def callback_referral_top(callback: CallbackQuery):
+    db = SessionLocal()
+    try:
+        service = ReferralService(db)
+        top = service.get_top_referrers(limit=10)
+        if not top:
+            await callback.message.edit_text("لا توجد بيانات إحالة بعد.", reply_markup=get_referral_keyboard())
+            return
+        text = "👥 أفضل المحيلين:\n\n" + "\n".join(f"{i+1}. {item.get('name') or item.get('telegram_id')} - {item.get('referrals', 0)}" for i, item in enumerate(top))
+        await callback.message.edit_text(text, reply_markup=get_referral_keyboard())
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "referral_badges")
+async def callback_referral_badges(callback: CallbackQuery):
+    db = SessionLocal()
+    try:
+        service = ReferralService(db)
+        user = UserService(db).get_or_create_user(callback.from_user.id, callback.from_user.username, callback.from_user.first_name, callback.from_user.last_name)
+        badges = service.get_user_badges(user.id)
+        text = "🎖️ شارات الإحالة:\n\n" + ("\n".join(f"• {b.name}" for b in badges) if badges else "لا توجد شارات بعد")
+        await callback.message.edit_text(text, reply_markup=get_referral_keyboard())
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "notifications_settings")
+async def callback_notifications_settings(callback: CallbackQuery):
+    await callback.message.edit_text("⚙️ إعدادات الإشعارات\n\n(قيد التطوير)", reply_markup=get_notifications_keyboard())
+
+@router.callback_query(F.data == "admin_badges")
+async def callback_admin_badges(callback: CallbackQuery):
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+    await callback.message.edit_text("🎖️ إدارة الشارات\n\n(قيد التطوير)", reply_markup=get_admin_challenges_keyboard())
+
+@router.callback_query(F.data == "admin_security_events")
+async def callback_admin_security_events(callback: CallbackQuery):
+    if not is_owner(callback.from_user.id):
+        await callback.answer("غير مصرح لك", show_alert=True)
+        return
+    db = SessionLocal()
+    try:
+        service = SecurityService(db)
+        logs = service.get_recent_logs(limit=10)
+        if logs:
+            text = "🚨 أحداث الأمان\n\n" + "\n".join(f"• {item.get('action')} @ {item.get('timestamp') or ''}" for item in logs)
+        else:
+            text = "🚨 أحداث الأمان\n\nلا توجد أحداث"
+        await callback.message.edit_text(text, reply_markup=get_admin_security_keyboard())
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "admin_user_ban")
+async def callback_admin_user_ban(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        return
+    await state.update_data(user_action="ban")
+    await callback.message.edit_text("🚫 أرسل Telegram ID للمستخدم الذي تريد حظره:")
+    await state.set_state(AdminStates.waiting_user_id)
+
+@router.callback_query(F.data == "admin_user_unban")
+async def callback_admin_user_unban(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        return
+    await state.update_data(user_action="unban")
+    await callback.message.edit_text("✅ أرسل Telegram ID للمستخدم الذي تريد إلغاء حظره:")
+    await state.set_state(AdminStates.waiting_user_id)
+
+@router.callback_query(F.data == "admin_user_message")
+async def callback_admin_user_message(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        return
+    await state.update_data(user_action="message")
+    await callback.message.edit_text("📤 أرسل Telegram ID للمستخدم الذي تريد مراسلته:")
+    await state.set_state(AdminStates.waiting_user_id)
+
+@router.callback_query(F.data == "admin_users_search")
+async def callback_admin_users_search(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        return
+    await state.update_data(user_action="search")
+    await callback.message.edit_text("🔍 أرسل اسم المستخدم أو Telegram ID للبحث:")
+    await state.set_state(AdminStates.waiting_user_id)
+
+@router.message(AdminStates.waiting_user_id)
+async def process_admin_user_id(message: Message, state: FSMContext, bot: Bot):
+    if not is_owner(message.from_user.id):
+        return
+    data = await state.get_data()
+    action = data.get("user_action")
+    query = (message.text or "").strip()
+    db = SessionLocal()
+    try:
+        user_service = UserService(db)
+        if action == "search":
+            users = user_service.search_users(query)
+            if users:
+                text = "👥 نتائج البحث:\n\n" + "\n".join(f"• {u.first_name or u.username or u.telegram_id} ({u.telegram_id})" for u in users)
+            else:
+                text = "👥 نتائج البحث:\n\nلا توجد نتائج"
+            await message.answer(text, reply_markup=get_admin_users_keyboard())
+        else:
+            try:
+                telegram_id = int(query)
+            except ValueError:
+                await message.answer("⚠️ أرسل رقم Telegram ID صالحاً.")
+                return
+            user = user_service.get_user_by_telegram_id(telegram_id)
+            if not user:
+                await message.answer("❌ المستخدم غير موجود.", reply_markup=get_admin_users_keyboard())
+                return
+            if action == "ban":
+                user_service.ban_user(telegram_id)
+                await message.answer("🚫 تم حظر المستخدم.", reply_markup=get_admin_users_keyboard())
+            elif action == "unban":
+                user_service.unban_user(telegram_id)
+                await message.answer("✅ تم إلغاء حظر المستخدم.", reply_markup=get_admin_users_keyboard())
+            elif action == "message":
+                await state.update_data(target_user_id=telegram_id)
+                await message.answer("📨 أرسل الرسالة الآن:")
+                await state.set_state(AdminStates.waiting_message_user)
+                return
+    finally:
+        db.close()
+        if action != "message":
+            await state.clear()
+
+@router.message(AdminStates.waiting_message_user)
+async def process_admin_user_message(message: Message, state: FSMContext, bot: Bot):
+    if not is_owner(message.from_user.id):
+        return
+    data = await state.get_data()
+    target_user_id = data.get("target_user_id")
+    if not target_user_id:
+        await message.answer("⚠️ لم يتم تحديد المستخدم.")
+        await state.clear()
+        return
+    try:
+        await bot.send_message(target_user_id, f"📨 رسالة من الإدارة:\n\n{message.text}")
+        await message.answer("✅ تم إرسال الرسالة بنجاح.", reply_markup=get_admin_users_keyboard())
+    except Exception as e:
+        await message.answer(f"⚠️ فشل إرسال الرسالة: {e}", reply_markup=get_admin_users_keyboard())
+    finally:
+        await state.clear()
+
+@router.callback_query(F.data == "ai_summary_quick")
+async def callback_ai_summary_quick(callback: CallbackQuery):
+    await callback.message.edit_text("📝 الملخص السريع\n\nأرسل عنوان الكتاب أو النص المطلوب تلخيصه.", reply_markup=get_back_keyboard())
+
+@router.callback_query(F.data == "ai_summary_detailed")
+async def callback_ai_summary_detailed(callback: CallbackQuery):
+    await callback.message.edit_text("📖 الملخص التفصيلي\n\nأرسل عنوان الكتاب أو النص المطلوب تلخيصه.", reply_markup=get_back_keyboard())
+
+@router.callback_query(F.data == "ai_characters")
+async def callback_ai_characters(callback: CallbackQuery):
+    await callback.message.edit_text("👥 تحليل الشخصيات\n\n(قيد التطوير)", reply_markup=get_back_keyboard())
+
+@router.callback_query(F.data == "ai_sentiment")
+async def callback_ai_sentiment(callback: CallbackQuery):
+    await callback.message.edit_text("😊 تحليل المشاعر\n\n(قيد التطوير)", reply_markup=get_back_keyboard())
+
+@router.callback_query(F.data == "ai_themes")
+async def callback_ai_themes(callback: CallbackQuery):
+    await callback.message.edit_text("🧩 تحليل الموضوعات\n\n(قيد التطوير)", reply_markup=get_back_keyboard())
