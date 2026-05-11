@@ -30,13 +30,11 @@ def get_main_menu_keyboard(is_owner: bool = False) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 
-def get_back_keyboard() -> ReplyKeyboardMarkup:
-    """زر الرجوع"""
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🔙 رجوع")]],
-        resize_keyboard=True
-    )
-
+def get_back_keyboard() -> InlineKeyboardMarkup:
+    """زر الرجوع (Inline) للتوافق مع edit_text"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 رجوع", callback_data="main_menu")]
+    ])
 
 # ==========================================
 # Inline Keyboards (أزرار Inline)
