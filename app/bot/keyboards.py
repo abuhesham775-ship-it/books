@@ -457,6 +457,10 @@ def get_search_type_keyboard() -> InlineKeyboardMarkup:
         text="✍️ حسب المؤلف",
         callback_data="search_author"
     ))
+    builder.add(InlineKeyboardButton(
+        text="🌐 بحث خارجي",
+        callback_data="search_external"
+    ))
 
     builder.adjust(2)
     return builder.as_markup()
