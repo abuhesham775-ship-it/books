@@ -1871,37 +1871,6 @@ async def callback_admin_ch_settings(callback: CallbackQuery):
         return
     await callback.message.edit_text("⚙️ إعدادات النشر\n\n(قيد التطوير)", reply_markup=get_admin_channels_keyboard())
 
-@router.callback_query(F.data == "admin_users_list")
-async def callback_admin_users_list(callback: CallbackQuery):
-    if not is_owner(callback.from_user.id):
-        await callback.answer("غير مصرح لك", show_alert=True)
-        return
-
-    db = SessionLocal()
-    try:
-        channel_service = ChannelService(db)
-        channels = channel_service.get_all_channels()
-
-        if not channels:
-            await callback.message.edit_text(
-                "لا توجد قنوات اشتراك إجباري",
-                reply_markup=get_admin_channels_keyboard()
-            )
-            return
-
-        text = "📡 قنوات الاشتراك:\n\n"
-        for ch in channels:
-            status = "مطلوب" if ch.is_required else "اختياري"
-            text += f"📢 {ch.channel_name or ch.channel_id}\n   الحالة: {status}\n\n"
-
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 رجوع", callback_data="admin_channels")]
-        ])
-        await callback.message.edit_text(text, reply_markup=keyboard)
-    finally:
-        db.close()
-
-
 @router.callback_query(F.data == "admin_users")
 async def callback_admin_users(callback: CallbackQuery):
     """إدارة المستخدمين"""
