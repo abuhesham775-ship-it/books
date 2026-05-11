@@ -2,7 +2,7 @@
 Challenge Service - خدمة التحديات والإنجازات
 """
 from typing import List, Optional, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from app.models.challenges import (
@@ -27,37 +27,24 @@ class ChallengeService:
 
     def get_available_challenges(self, user_id: int) -> List[Challenge]:
         """الحصول على التحديات المتاحة للمستخدم"""
-        now = datetime.utcnow()
-    
+        now = datetime.now(timezone.utc)
+
         # التحديات النشطة
         challenges = self.db.query(Challenge).filter(
             Challenge.is_active == True,
             Challenge.starts_at <= now,
             (Challenge.ends_at.is_(None) | (Challenge.ends_at > now))
         ).order_by(Challenge.sort_order).all()
-    
+
         # تصفية التحديات المشاركة فيها
         available = []
         for challenge in challenges:
             participation = self.get_participation(user_id, challenge.id)
             if not participation or participation.status == ChallengeStatus.NOT_STARTED:
                 available.append(challenge)
-    
+
         return available
-    def get_all_challenges(self, active_only: bool = False) -> List[Challenge]:
-        """الحصول على جميع التحديات"""
-        query = self.db.query(Challenge)
 
-        if active_only:
-        now = datetime.utcnow()
-        query = query.filter(
-            Challenge.is_active == True,
-            Challenge.starts_at <= now,
-            (Challenge.ends_at.is_(None) | (Challenge.ends_at > now))
-        )
-
-        return query.order_by(Challenge.sort_order, Challenge.id).all()
-    
     def get_active_challenges(self, user_id: int) -> List[ChallengeParticipation]:
         """الحصول على التحديات النشطة للمستخدم"""
         return self.db.query(ChallengeParticipation).filter(
@@ -83,7 +70,7 @@ class ChallengeService:
         # حساب وقت انتهاء التحدي
         expires_at = None
         if challenge.time_limit_hours:
-            expires_at = datetime.utcnow() + timedelta(hours=challenge.time_limit_hours)
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=challenge.time_limit_hours)
 
         participation = ChallengeParticipation(
             challenge_id=challenge_id,
@@ -128,7 +115,7 @@ class ChallengeService:
             return None
 
         # التحقق من انتهاء الوقت
-        if participation.expires_at and participation.expires_at < datetime.utcnow():
+        if participation.expires_at and participation.expires_at < datetime.now(timezone.utc):
             participation.status = ChallengeStatus.EXPIRED
             self.db.commit()
             return participation
@@ -138,12 +125,12 @@ class ChallengeService:
             (new_progress / challenge.target_value) * 100,
             100
         )
-        participation.last_updated = datetime.utcnow()
+        participation.last_updated = datetime.now(timezone.utc)
 
         # التحقق من اكتمال التحدي
         if new_progress >= challenge.target_value:
             participation.status = ChallengeStatus.COMPLETED
-            participation.completed_at = datetime.utcnow()
+            participation.completed_at = datetime.now(timezone.utc)
 
             # منح المكافأة
             self.award_challenge_reward(participation)
@@ -175,7 +162,7 @@ class ChallengeService:
 
         # تحديث حالة المكافأة
         participation.reward_claimed = True
-        participation.reward_claimed_at = datetime.utcnow()
+        participation.reward_claimed_at = datetime.now(timezone.utc)
 
         self.db.commit()
 
@@ -195,7 +182,7 @@ class ChallengeService:
         points.lifetime_earned += amount
 
         transaction = PointsTransaction(
-            user_id=user_id,
+            user_id=points.id,
             amount=amount,
             transaction_type=TransactionType.GIFT,
             description=description
@@ -286,7 +273,8 @@ class ChallengeService:
             else:
                 # التحقق من الشروط الأخرى
                 if req_type == "downloads":
-                    count = self.db.query(func.count()).filter().scalar()  # تحتاج implementation
+                    # تحتاج إلى استكمال الاستعلام
+                    count = self.db.query(func.count()).select_from(User).filter().scalar()
                 # يمكن إضافة شروط أخرى حسب الحاجة
 
         return True
@@ -301,7 +289,7 @@ class ChallengeService:
             DailyStreak.user_id == user_id
         ).first()
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         today = now.date()
 
         if not streak:
@@ -370,7 +358,7 @@ class ChallengeService:
                     milestone_id=milestone.id,
                     progress=progress,
                     is_completed=True,
-                    completed_at=datetime.utcnow(),
+                    completed_at=datetime.now(timezone.utc),
                     reward_claimed=True
                 )
                 self.db.add(user_milestone)
