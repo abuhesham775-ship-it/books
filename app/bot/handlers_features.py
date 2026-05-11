@@ -1212,9 +1212,64 @@ async def callback_admin_upload_book(callback: CallbackQuery, state: FSMContext)
     if not is_owner(callback.from_user.id):
         await callback.answer("غير مصرح لك", show_alert=True)
         return
-    await callback.message.edit_text("📖 أرسل عنوان الكتاب الجديد:")
-    await state.set_state(AdminStates.waiting_book_title)
 
+    db = SessionLocal()
+    try:
+        category_service = CategoryService(db)
+        categories = category_service.list_all(active_only=False)
+        if not categories:
+            await callback.message.edit_text("📭 لا توجد أقسام. أضف قسماً أولاً.", reply_markup=get_admin_books_keyboard())
+            return
+
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        for cat in categories:
+            builder.add(InlineKeyboardButton(
+                text=cat.name,
+                callback_data=f"upload_cat_{cat.id}"
+            ))
+        builder.row(InlineKeyboardButton(text="🔙 إلغاء", callback_data="admin_books"))
+        await callback.message.edit_text("📁 اختر القسم الذي سينتمي إليه الكتاب:", reply_markup=builder.as_markup())
+        await state.set_state(AdminStates.waiting_book_category)
+    finally:
+        db.close()
+@router.callback_query(AdminStates.waiting_book_category, F.data.startswith("upload_cat_"))
+async def process_book_category_choice(callback: CallbackQuery, state: FSMContext):
+    if not is_owner(callback.from_user.id):
+        return
+    category_id = int(callback.data.split("_")[-1])
+    await state.update_data(book_category_id=category_id)
+
+    # الآن نعرض المؤلفين المرتبطين بهذا القسم (أو كل المؤلفين إذا لم يوجد)
+    db = SessionLocal()
+    try:
+        author_service = AuthorService(db)
+        authors = author_service.get_authors_by_category(category_id)  # المؤلفون المرتبطون مباشرة
+        if not authors:
+            # إذا لم يوجد مؤلفين، نعطي خيار إدخال اسم مؤلف جديد مع رسالة
+            await callback.message.edit_text(
+                "✍️ لا يوجد مؤلفين في هذا القسم. أرسل اسم المؤلف الجديد:",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔙 إلغاء", callback_data="admin_books")]
+                ])
+            )
+            # نستخدم حالة waiting_book_author (الموجودة) لقبول اسم المؤلف
+            await state.set_state(AdminStates.waiting_book_author)
+        else:
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            builder = InlineKeyboardBuilder()
+            for author in authors:
+                builder.add(InlineKeyboardButton(
+                    text=author.name,
+                    callback_data=f"upload_author_{author.id}"
+                ))
+            builder.row(InlineKeyboardButton(text="✍️ إضافة مؤلف جديد", callback_data="upload_new_author"))
+            builder.row(InlineKeyboardButton(text="🔙 إلغاء", callback_data="admin_books"))
+            await callback.message.edit_text("✍️ اختر المؤلف:", reply_markup=builder.as_markup())
+            await state.set_state(AdminStates.waiting_book_author_select)
+    finally:
+        db.close()
+        
 @router.message(AdminStates.waiting_book_title)
 async def process_book_title(message: Message, state: FSMContext):
     if not is_owner(message.from_user.id):
