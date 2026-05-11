@@ -227,6 +227,8 @@ class AdminStates(StatesGroup):
     waiting_message_user = State()
     waiting_ai_question = State()
     waiting_author_category = State()
+    waiting_book_category = State()
+    waiting_book_author_select = State()
 
 
 # ==========================================
