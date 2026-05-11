@@ -801,7 +801,7 @@ def get_admin_challenges_keyboard() -> InlineKeyboardMarkup:
 
     builder.add(InlineKeyboardButton(
         text="🏆 عرض التحديات",
-        callback_data="admin_ch_list"
+        callback_data="admin_challenges_list"
     ))
     builder.add(InlineKeyboardButton(
         text="➕ إضافة تحدي",
