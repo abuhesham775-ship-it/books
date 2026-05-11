@@ -346,8 +346,8 @@ def get_admin_authors_keyboard() -> InlineKeyboardMarkup:
 def get_admin_channels_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة القنوات"""
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="📋 عرض القنوات", callback_data="admin_ch_list"))
-    builder.add(InlineKeyboardButton(text="➕ إضافة قناة", callback_data="admin_add_channel"))  # تغيير من admin_ch_add
+    builder.add(InlineKeyboardButton(text="📋 عرض القنوات", callback_data="admin_channels_list"))
+    builder.add(InlineKeyboardButton(text="➕ إضافة قناة", callback_data="admin_add_channel"))
     builder.add(InlineKeyboardButton(
         text="🗑️ حذف قناة",
         callback_data="admin_ch_delete"
@@ -364,6 +364,71 @@ def get_admin_channels_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(2)
     return builder.as_markup()
 
+
+def get_admin_users_keyboard() -> InlineKeyboardMarkup:
+    """أزرار إدارة المستخدمين"""
+    builder = InlineKeyboardBuilder()
+
+    builder.add(InlineKeyboardButton(
+        text="👥 عرض جميع المستخدمين",
+        callback_data="admin_users_list"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="🔍 البحث عن مستخدم",
+        callback_data="admin_users_search"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="🚫 حظر مستخدم",
+        callback_data="admin_user_ban"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="✅ فك حظر مستخدم",
+        callback_data="admin_user_unban"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="📤 رسالة لمستخدم",
+        callback_data="admin_user_message"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="📢 رسالة للجميع",
+        callback_data="admin_broadcast"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="🔙 رجوع للوحة التحكم",
+        callback_data="admin_menu"
+    ))
+
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def get_admin_challenges_keyboard() -> InlineKeyboardMarkup:
+    """أزرار إدارة التحديات"""
+    builder = InlineKeyboardBuilder()
+
+    builder.add(InlineKeyboardButton(
+        text="🏆 عرض التحديات",
+        callback_data="admin_challenges_list"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="➕ إضافة تحدي",
+        callback_data="admin_ch_add"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="🎖️ إدارة الشارات",
+        callback_data="admin_badges"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="📊 لوحة المتصدرين",
+        callback_data="admin_ch_leaderboard"
+    ))
+    builder.add(InlineKeyboardButton(
+        text="🔙 رجوع للوحة التحكم",
+        callback_data="admin_menu"
+    ))
+
+    builder.adjust(2)
+    return builder.as_markup()
 
 def get_admin_users_keyboard() -> InlineKeyboardMarkup:
     """أزرار إدارة المستخدمين"""
