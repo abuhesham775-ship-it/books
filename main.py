@@ -3,18 +3,17 @@ Smart Books Library Bot - Main Entry Point
 FastAPI + Telegram Bot Integration with Lifecycle Management
 """
 import asyncio
+import os
 import logging
 from contextlib import asynccontextmanager
-
-import uvicorn
-from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.storage.redis import RedisStorage
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+import uvicorn
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.fsm.storage.memory import MemoryStorage
 from config.settings import get_settings
-from app.database import Base, engine, init_db
+from app.database import init_db, engine, Base
 from app.bot.handlers_router import handlers_router
 from app.bot.handlers_features import ForceJoinMiddleware, RateLimitMiddleware
 
@@ -47,47 +46,34 @@ bot_task = None
 
 
 async def start_bot():
-    """تشغيل بوت تيليجرام في الخلفية"""
-    global bot, dp
-
     try:
-        # اختيار التخزين
-        if settings.redis_url:
-            try:
-                storage = RedisStorage.from_url(settings.redis_url)
-                logger.info("Using Redis storage")
-            except Exception as e:
-                logger.warning(
-                    f"Failed to connect to Redis: {e}, falling back to MemoryStorage"
-                )
-                storage = MemoryStorage()
-        else:
-            storage = MemoryStorage()
-            logger.info("Using Memory storage")
-
-        bot = Bot(token=settings.telegram_bot_token)
-        dp = Dispatcher(storage=storage)
-
-        dp.update.middleware(RateLimitMiddleware())
-        dp.update.middleware(ForceJoinMiddleware())
-        dp.include_router(handlers_router)
-
-        logger.info("Starting Telegram Bot...")
-        logger.info(
-            f"Bot token: {'*' * 10}...{settings.telegram_bot_token[-4:] if settings.telegram_bot_token else 'None'}"
-        )
-        logger.info(f"Admin ID: {settings.telegram_admin_id}")
-        logger.info(
-            f"Redis URL: {'*' * 10}...{settings.redis_url[-4:] if settings.redis_url else 'None'}"
-        )
-
-        await dp.start_polling(bot)
-
-    except asyncio.CancelledError:
-        logger.info("Bot task cancelled")
-        raise
+        global bot, dp
+        # ... باقي الكود ...
     except Exception as e:
         logger.error(f"Bot failed to start: {e}", exc_info=True)
+    # اختيار التخزين
+    if settings.redis_url:
+        try:
+            storage = RedisStorage.from_url(settings.redis_url)
+            logger.info("Using Redis storage")
+        except Exception as e:
+            logger.warning(f"Failed to connect to Redis: {e}, falling back to MemoryStorage")
+            storage = MemoryStorage()
+    else:
+        storage = MemoryStorage()
+        logger.info("Using Memory storage")
+
+    bot = Bot(token=settings.telegram_bot_token)
+    dp = Dispatcher(storage=storage)
+    dp.update.middleware(RateLimitMiddleware())
+    dp.update.middleware(ForceJoinMiddleware())
+    dp.include_router(handlers_router)
+
+    logger.info("Starting Telegram Bot...")
+    logger.info(f"Bot token: {'*' * 10}...{settings.telegram_bot_token[-4:] if settings.telegram_bot_token else 'None'}")
+    logger.info(f"Admin ID: {settings.telegram_admin_id}")
+    logger.info(f"Redis URL: {'*' * 10}...{settings.redis_url[-4:] if settings.redis_url else 'None'}")
+    await dp.start_polling(bot)
 
 
 @asynccontextmanager
@@ -104,9 +90,9 @@ async def lifespan(app: FastAPI):
         init_db()
         logger.info("Database initialized successfully")
     except Exception as e:
-        logger.error(f"Database initialization failed: {e}", exc_info=True)
+        logger.error(f"Database initialization failed: {e}")
 
-    # بدء البوت في الخلفية
+    # بدء البوت في خلفية
     logger.info("Starting bot in background...")
     bot_task = asyncio.create_task(start_bot())
 
@@ -168,7 +154,6 @@ app.include_router(recommendations.router, prefix="/api")
 app.include_router(challenges.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(social.router, prefix="/api")
-
 
 @app.get("/")
 def root():
