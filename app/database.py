@@ -34,4 +34,5 @@ def get_db():
 
 def init_db():
     """تهيئة قاعدة البيانات - إنشاء جميع الجداول"""
+    import app.models  # مهم جدًا لتسجيل جميع النماذج قبل إنشاء الجداول
     Base.metadata.create_all(bind=engine)
