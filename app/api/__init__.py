@@ -15,6 +15,7 @@ from app.api.market import router as market_router
 from app.api.recommendations import router as recommendations_router
 from app.api.challenges import router as challenges_router
 from app.api.notifications import router as notifications_router
+from app.api.social import router as social_router
 
 __all__ = [
     "users_router",
@@ -31,4 +32,5 @@ __all__ = [
     "recommendations_router",
     "challenges_router",
     "notifications_router",
+    "social_router",
 ]
